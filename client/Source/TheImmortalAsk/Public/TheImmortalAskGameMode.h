@@ -6,6 +6,8 @@
 #include "GameFramework/GameModeBase.h"
 #include "TheImmortalAskGameMode.generated.h"
 
+class UAuthWidgetHost;
+
 UCLASS()
 class THEIMMORTALASK_API ATheImmortalAskGameMode : public AGameModeBase
 {
@@ -16,4 +18,10 @@ public:
 
 protected:
 	virtual void BeginPlay() override;
+	virtual void PostLogin(APlayerController* NewPlayer) override;
+
+private:
+	void EnsureAuthUI(APlayerController* PlayerController);
+
+	TWeakObjectPtr<UAuthWidgetHost> AuthWidgetInstance;
 };
