@@ -1,0 +1,32 @@
+# Rust
+/server/target/
+**/*.rs.bk
+
+# UE5
+/client/Binaries/
+/client/DerivedDataCache/
+/client/Intermediate/
+/client/Saved/
+/client/.vs/
+/client/*.sln
+/client/*.xcodeproj
+/client/*.xcworkspace
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Env & secrets
+.env
+.env.*
+!.env.example
+
+# Docker / K8s local
+/deploy/docker/data/
+
+# Logs
+*.log

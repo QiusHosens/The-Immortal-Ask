@@ -1,0 +1,41 @@
+global:
+  imageRegistry: registry.example.com/immortal-ask
+  imagePullPolicy: IfNotPresent
+
+gateway:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: gateway
+    tag: latest
+  service:
+    type: ClusterIP
+    port: 8080
+
+auth:
+  enabled: true
+  replicaCount: 1
+  image:
+    repository: auth
+    tag: latest
+
+game:
+  enabled: true
+  replicaCount: 2
+  image:
+    repository: game
+    tag: latest
+
+postgresql:
+  host: postgres
+  port: 5432
+  database: immortal_ask
+  username: immortal
+  existingSecret: immortal-ask-db-secret
+
+redis:
+  host: redis
+  port: 6379
+
+kafka:
+  brokers: kafka:9092

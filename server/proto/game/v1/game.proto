@@ -1,0 +1,57 @@
+syntax = "proto3";
+
+package immortal.ask.game.v1;
+
+import "common/v1/common.proto";
+
+option go_package = "immortal/ask/game/v1";
+
+service GameService {
+  rpc ListCharacters(ListCharactersRequest) returns (ListCharactersResponse);
+  rpc CreateCharacter(CreateCharacterRequest) returns (CreateCharacterResponse);
+  rpc EnterWorld(EnterWorldRequest) returns (EnterWorldResponse);
+}
+
+message CharacterSummary {
+  uint64 character_id = 1;
+  string public_id = 2;
+  string name = 3;
+  uint32 level = 4;
+  uint32 realm_stage_id = 5;
+  uint32 sect_id = 6;
+}
+
+message ListCharactersRequest {
+  uint64 account_id = 1;
+  uint32 realm_id = 2;
+}
+
+message ListCharactersResponse {
+  repeated CharacterSummary characters = 1;
+}
+
+message CreateCharacterRequest {
+  uint64 account_id = 1;
+  uint32 realm_id = 2;
+  string name = 3;
+  uint32 gender = 4;
+  uint32 sect_id = 5;
+  uint32 spirit_root_id = 6;
+}
+
+message CreateCharacterResponse {
+  uint64 character_id = 1;
+  string public_id = 2;
+}
+
+message EnterWorldRequest {
+  uint64 character_id = 1;
+}
+
+message EnterWorldResponse {
+  uint32 map_id = 1;
+  float pos_x = 2;
+  float pos_y = 3;
+  float pos_z = 4;
+  float rotation_yaw = 5;
+}

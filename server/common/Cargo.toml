@@ -1,0 +1,16 @@
+[package]
+name = "immortal-ask-common"
+description = "Shared types, errors and configuration for 宿命劫：问仙 backend"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[lib]
+path = "src/lib.rs"

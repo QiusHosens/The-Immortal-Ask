@@ -1,0 +1,8 @@
+replicaCount: 1
+
+image:
+  repository: auth
+  tag: latest
+  pullPolicy: IfNotPresent
+
+resources: {}

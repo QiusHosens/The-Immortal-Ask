@@ -1,0 +1,28 @@
+{
+  "FileVersion": 3,
+  "EngineAssociation": "5.7",
+  "Category": "",
+  "Description": "宿命劫：问仙 — UE5 客户端",
+  "Modules": [
+    {
+      "Name": "TheImmortalAsk",
+      "Type": "Runtime",
+      "LoadingPhase": "Default"
+    }
+  ],
+  "Plugins": [
+    {
+      "Name": "GameplayAbilities",
+      "Enabled": true
+    },
+    {
+      "Name": "OnlineSubsystem",
+      "Enabled": false
+    }
+  ],
+  "TargetPlatforms": [
+    "Windows",
+    "Linux",
+    "Mac"
+  ]
+}

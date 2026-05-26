@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "game.fullname" . }}
+  labels:
+    app.kubernetes.io/name: game
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: game
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: game
+    spec:
+      containers:
+        - name: game
+          image: "{{ .Values.global.imageRegistry | default "registry.example.com/immortal-ask" }}/{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.global.dbSecretName | default "immortal-ask-db-secret" }}
+                  key: database-url
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

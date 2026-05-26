@@ -1,0 +1,20 @@
+[package]
+name = "immortal-ask-auth"
+description = "Authentication service for 宿命劫：问仙"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "auth"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+dotenvy.workspace = true
+immortal-ask-common = { path = "../common" }
+sqlx.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

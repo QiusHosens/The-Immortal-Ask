@@ -1,0 +1,30 @@
+[package]
+name = "immortal-ask-gateway"
+description = "HTTP / WebSocket gateway for 宿命劫：问仙"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lib]
+path = "src/lib.rs"
+
+[[bin]]
+name = "gateway"
+path = "src/main.rs"
+
+[dependencies]
+anyhow.workspace = true
+argon2.workspace = true
+axum.workspace = true
+chrono.workspace = true
+dotenvy.workspace = true
+immortal-ask-common = { path = "../common" }
+jsonwebtoken.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+sqlx.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true

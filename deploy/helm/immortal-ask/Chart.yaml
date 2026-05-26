@@ -1,0 +1,17 @@
+apiVersion: v2
+name: immortal-ask
+description: 宿命劫：问仙 — Umbrella Helm Chart
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+
+dependencies:
+  - name: gateway
+    version: 0.1.0
+    repository: "file://charts/gateway"
+  - name: auth
+    version: 0.1.0
+    repository: "file://charts/auth"
+  - name: game
+    version: 0.1.0
+    repository: "file://charts/game"

@@ -1,0 +1,14 @@
+gateway:
+  replicaCount: 3
+  image:
+    tag: latest
+
+auth:
+  replicaCount: 2
+  image:
+    tag: latest
+
+game:
+  replicaCount: 4
+  image:
+    tag: latest

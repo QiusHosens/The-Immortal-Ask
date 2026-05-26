@@ -1,0 +1,8 @@
+replicaCount: 2
+
+image:
+  repository: game
+  tag: latest
+  pullPolicy: IfNotPresent
+
+resources: {}

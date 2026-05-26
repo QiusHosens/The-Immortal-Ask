@@ -1,0 +1,23 @@
+gateway:
+  replicaCount: 1
+  image:
+    tag: dev
+
+auth:
+  replicaCount: 1
+  image:
+    tag: dev
+
+game:
+  replicaCount: 1
+  image:
+    tag: dev
+
+postgresql:
+  host: host.docker.internal
+
+redis:
+  host: host.docker.internal
+
+kafka:
+  brokers: host.docker.internal:9092
