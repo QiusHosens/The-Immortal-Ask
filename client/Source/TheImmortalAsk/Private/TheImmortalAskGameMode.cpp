@@ -6,6 +6,7 @@
 
 ATheImmortalAskGameMode::ATheImmortalAskGameMode()
 {
-	bStartPlayersAsSpectators = false;
+	bStartPlayersAsSpectators = true;
+	DefaultPawnClass = nullptr;
 	PlayerControllerClass = ATheImmortalAskPlayerController::StaticClass();
 }

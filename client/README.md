@@ -35,7 +35,7 @@ cd server && cargo run -p immortal-ask-gateway
 
 ```ini
 [/Script/TheImmortalAsk.AuthSettings]
-GatewayBaseUrl=http://127.0.0.1:8080
+GatewayBaseUrl="http://127.0.0.1:8080"
 ```
 
 ## 界面说明

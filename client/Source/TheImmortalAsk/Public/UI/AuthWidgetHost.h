@@ -12,10 +12,16 @@ class UEditableTextBox;
 class UTextBlock;
 class UVerticalBox;
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnAuthFlowCompleted);
+
 UCLASS()
 class THEIMMORTALASK_API UAuthWidgetHost : public UUserWidget
 {
 	GENERATED_BODY()
+
+public:
+	UPROPERTY(BlueprintAssignable, Category = "Auth")
+	FOnAuthFlowCompleted OnAuthFlowCompleted;
 
 protected:
 	virtual TSharedRef<SWidget> RebuildWidget() override;

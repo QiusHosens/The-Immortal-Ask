@@ -1,3 +1,4 @@
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use immortal_ask_common::AppConfig;
@@ -5,9 +6,23 @@ use immortal_ask_gateway::{AppState, build_router};
 use tokio::net::TcpListener;
 use tracing_subscriber::{EnvFilter, fmt};
 
+fn load_dotenv() {
+    if dotenvy::dotenv().is_ok() {
+        return;
+    }
+
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    for relative in ["../.env", "../../.env"] {
+        let path = manifest_dir.join(relative);
+        if dotenvy::from_path(path).is_ok() {
+            return;
+        }
+    }
+}
+
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
-    dotenvy::dotenv().ok();
+    load_dotenv();
 
     fmt()
         .with_env_filter(EnvFilter::from_default_env())

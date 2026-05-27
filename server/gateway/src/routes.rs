@@ -3,13 +3,12 @@ use std::sync::Arc;
 use axum::{
     Json, Router,
     extract::State,
-    http::StatusCode,
     routing::{get, post},
 };
 use serde::{Deserialize, Serialize};
 use sqlx::Row;
 
-use crate::{AppState, auth as auth_util};
+use crate::{AppState, auth as auth_util, error::{ApiError, bad_request, conflict, internal, unauthorized}};
 
 #[derive(Serialize)]
 struct HealthResponse {
@@ -43,13 +42,20 @@ struct LoginResponse {
     account_id: i64,
 }
 
-#[derive(Serialize)]
-struct ErrorBody {
-    error: String,
-    code: &'static str,
+fn validate_username(username: &str) -> Result<(), ApiError> {
+    let len = username.chars().count();
+    if !(3..=32).contains(&len) {
+        return Err(bad_request("用户名长度需为 3-32 个字符"));
+    }
+    Ok(())
 }
 
-type ApiError = (StatusCode, Json<ErrorBody>);
+fn validate_password(password: &str) -> Result<(), ApiError> {
+    if password.chars().count() < 6 {
+        return Err(bad_request("密码长度至少 6 个字符"));
+    }
+    Ok(())
+}
 
 async fn health() -> Json<HealthResponse> {
     Json(HealthResponse {
@@ -65,49 +71,24 @@ async fn ready() -> Json<HealthResponse> {
     })
 }
 
-fn validate_username(username: &str) -> Result<(), ApiError> {
-    let len = username.chars().count();
-    if !(3..=32).contains(&len) {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "用户名长度需为 3-32 个字符".into(),
-                code: "INVALID_ARGUMENT",
-            }),
-        ));
-    }
-    Ok(())
-}
-
-fn validate_password(password: &str) -> Result<(), ApiError> {
-    if password.chars().count() < 6 {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(ErrorBody {
-                error: "密码长度至少 6 个字符".into(),
-                code: "INVALID_ARGUMENT",
-            }),
-        ));
-    }
-    Ok(())
+fn normalize_email(email: Option<String>) -> Option<String> {
+    email
+        .map(|value| value.trim().to_string())
+        .filter(|value| !value.is_empty())
 }
 
 async fn register(
     State(state): State<Arc<AppState>>,
     Json(body): Json<RegisterRequest>,
 ) -> Result<Json<RegisterResponse>, ApiError> {
-    validate_username(&body.username)?;
-    validate_password(&body.password)?;
+    let username = body.username.trim().to_string();
+    let password = body.password.trim().to_string();
+    let email = normalize_email(body.email);
 
-    let password_hash = auth_util::hash_password(&body.password).map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody {
-                error: "密码处理失败".into(),
-                code: "INTERNAL",
-            }),
-        )
-    })?;
+    validate_username(&username)?;
+    validate_password(&password)?;
+
+    let password_hash = auth_util::hash_password(&password).map_err(|_| internal("密码处理失败"))?;
 
     let row = sqlx::query(
         r#"
@@ -116,26 +97,16 @@ async fn register(
         RETURNING id
         "#,
     )
-    .bind(&body.username)
-    .bind(body.email.as_deref())
+    .bind(&username)
+    .bind(email.as_deref())
     .bind(&password_hash)
     .fetch_one(&state.db)
     .await
     .map_err(|err| match err {
-        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505") => (
-            StatusCode::CONFLICT,
-            Json(ErrorBody {
-                error: "用户名或邮箱已被注册".into(),
-                code: "CONFLICT",
-            }),
-        ),
-        _ => (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody {
-                error: "注册失败，请稍后重试".into(),
-                code: "INTERNAL",
-            }),
-        ),
+        sqlx::Error::Database(db_err) if db_err.code().as_deref() == Some("23505") => {
+            conflict("用户名或邮箱已被注册")
+        }
+        _ => internal("注册失败，请稍后重试"),
     })?;
 
     let account_id: i64 = row.get("id");
@@ -160,24 +131,10 @@ async fn login(
     .bind(&body.username)
     .fetch_optional(&state.db)
     .await
-    .map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody {
-                error: "登录失败，请稍后重试".into(),
-                code: "INTERNAL",
-            }),
-        )
-    })?;
+    .map_err(|_| internal("登录失败，请稍后重试"))?;
 
     let Some(row) = row else {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody {
-                error: "用户名或密码错误".into(),
-                code: "UNAUTHORIZED",
-            }),
-        ));
+        return Err(unauthorized("用户名或密码错误"));
     };
 
     let account_id: i64 = row.get("id");
@@ -185,33 +142,14 @@ async fn login(
     let status: i16 = row.get("status");
 
     if status != 1 {
-        return Err((
-            StatusCode::FORBIDDEN,
-            Json(ErrorBody {
-                error: "账号已被禁用".into(),
-                code: "FORBIDDEN",
-            }),
-        ));
+        return Err(crate::error::forbidden("账号已被禁用"));
     }
 
-    let valid = auth_util::verify_password(&body.password, &password_hash).map_err(|_| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ErrorBody {
-                error: "登录失败，请稍后重试".into(),
-                code: "INTERNAL",
-            }),
-        )
-    })?;
+    let valid = auth_util::verify_password(&body.password, &password_hash)
+        .map_err(|_| internal("登录失败，请稍后重试"))?;
 
     if !valid {
-        return Err((
-            StatusCode::UNAUTHORIZED,
-            Json(ErrorBody {
-                error: "用户名或密码错误".into(),
-                code: "UNAUTHORIZED",
-            }),
-        ));
+        return Err(unauthorized("用户名或密码错误"));
     }
 
     let _ = sqlx::query("UPDATE accounts SET last_login_at = now() WHERE id = $1")
@@ -220,17 +158,8 @@ async fn login(
         .await;
 
     const EXPIRES_IN: u64 = 86_400;
-    let access_token = auth_util::issue_token(account_id, &state.jwt_secret, EXPIRES_IN).map_err(
-        |_| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ErrorBody {
-                    error: "令牌签发失败".into(),
-                    code: "INTERNAL",
-                }),
-            )
-        },
-    )?;
+    let access_token =
+        auth_util::issue_token(account_id, &state.jwt_secret, EXPIRES_IN).map_err(|_| internal("令牌签发失败"))?;
 
     Ok(Json(LoginResponse {
         access_token: access_token.clone(),

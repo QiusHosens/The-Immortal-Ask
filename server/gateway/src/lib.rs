@@ -5,6 +5,8 @@ use sqlx::PgPool;
 use tower_http::cors::{Any, CorsLayer};
 
 mod auth;
+mod characters;
+mod error;
 mod routes;
 
 pub struct AppState {
@@ -18,5 +20,8 @@ pub fn build_router(state: Arc<AppState>) -> Router {
         .allow_methods(Any)
         .allow_headers(Any);
 
-    routes::router().layer(cors).with_state(state)
+    routes::router()
+        .merge(characters::router())
+        .layer(cors)
+        .with_state(state)
 }

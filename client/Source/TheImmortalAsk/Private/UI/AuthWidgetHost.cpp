@@ -302,6 +302,7 @@ void UAuthWidgetHost::HandleLoginClicked()
 						Session->SetSession(AccountId, AccessToken, ExpiresIn);
 					}
 				}
+				OnAuthFlowCompleted.Broadcast();
 			}
 		});
 }
@@ -309,7 +310,11 @@ void UAuthWidgetHost::HandleLoginClicked()
 void UAuthWidgetHost::HandleRegisterClicked()
 {
 	const FString Username = RegisterUsernameInput ? RegisterUsernameInput->GetText().ToString().TrimStartAndEnd() : FString();
-	const FString Email = RegisterEmailInput ? RegisterEmailInput->GetText().ToString().TrimStartAndEnd() : FString();
+	FString Email = RegisterEmailInput ? RegisterEmailInput->GetText().ToString().TrimStartAndEnd() : FString();
+	if (Email.Equals(TEXT("name@example.com"), ESearchCase::IgnoreCase) || !Email.Contains(TEXT("@")))
+	{
+		Email.Reset();
+	}
 	const FString Password = RegisterPasswordInput ? RegisterPasswordInput->GetText().ToString() : FString();
 	const FString ConfirmPassword = RegisterConfirmPasswordInput ? RegisterConfirmPasswordInput->GetText().ToString() : FString();
 

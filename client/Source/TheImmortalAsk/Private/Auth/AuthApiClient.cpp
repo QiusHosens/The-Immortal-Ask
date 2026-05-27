@@ -3,6 +3,7 @@
 #include "Auth/AuthApiClient.h"
 
 #include "Auth/AuthSettings.h"
+#include "Async/Async.h"
 #include "HttpModule.h"
 #include "Interfaces/IHttpRequest.h"
 #include "Interfaces/IHttpResponse.h"
@@ -11,20 +12,38 @@
 #include "Serialization/JsonSerializer.h"
 #include "Serialization/JsonWriter.h"
 
+DEFINE_LOG_CATEGORY_STATIC(LogTheImmortalAskApi, Log, All);
+
 namespace
 {
-	FString ExtractErrorMessage(const FString& ResponseBody)
+	TArray<TSharedPtr<IHttpRequest, ESPMode::ThreadSafe>> GPendingAuthRequests;
+
+	FString ExtractErrorMessage(const FString& ResponseBody, const int32 ResponseCode)
 	{
-		TSharedPtr<FJsonObject> JsonObject;
-		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ResponseBody);
-		if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
+		if (!ResponseBody.IsEmpty())
 		{
-			FString Error;
-			if (JsonObject->TryGetStringField(TEXT("error"), Error))
+			TSharedPtr<FJsonObject> JsonObject;
+			const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ResponseBody);
+			if (FJsonSerializer::Deserialize(Reader, JsonObject) && JsonObject.IsValid())
 			{
-				return Error;
+				FString Error;
+				if (JsonObject->TryGetStringField(TEXT("error"), Error) && !Error.IsEmpty())
+				{
+					return Error;
+				}
+			}
+
+			if (ResponseBody.Len() <= 160)
+			{
+				return ResponseBody;
 			}
 		}
+
+		if (ResponseCode > 0)
+		{
+			return FString::Printf(TEXT("请求失败（HTTP %d）"), ResponseCode);
+		}
+
 		return TEXT("请求失败，请稍后重试");
 	}
 
@@ -35,15 +54,67 @@ namespace
 		FJsonSerializer::Serialize(JsonObject, Writer);
 		return Payload;
 	}
+
+	void SendJsonPost(
+		const FString& Url,
+		const TSharedRef<FJsonObject>& Body,
+		TFunction<void(bool bSuccess, const FString& Message, int32 ResponseCode, const FString& ResponseBody)> Callback)
+	{
+		const FString Payload = BuildJsonPayload(Body);
+		TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
+		GPendingAuthRequests.Add(Request);
+
+		Request->SetURL(Url);
+		Request->SetVerb(TEXT("POST"));
+		Request->SetHeader(TEXT("Content-Type"), TEXT("application/json; charset=utf-8"));
+		Request->SetHeader(TEXT("Accept"), TEXT("application/json"));
+		Request->SetContentAsString(Payload);
+		Request->SetTimeout(15.0f);
+
+		UE_LOG(LogTheImmortalAskApi, Log, TEXT("POST %s payload=%s"), *Url, *Payload);
+
+		Request->OnProcessRequestComplete().BindLambda(
+			[Request, Callback](FHttpRequestPtr, const FHttpResponsePtr& Response, const bool bConnectedSuccessfully)
+			{
+				const int32 ResponseCode = Response.IsValid() ? Response->GetResponseCode() : 0;
+				const FString ResponseBody = Response.IsValid() ? Response->GetContentAsString() : FString();
+				const bool bSuccess = bConnectedSuccessfully && Response.IsValid() && ResponseCode >= 200 && ResponseCode < 300;
+				const FString Message = bSuccess
+					? FString()
+					: (!bConnectedSuccessfully || !Response.IsValid())
+						? TEXT("无法连接服务器，请确认网关已启动")
+						: ExtractErrorMessage(ResponseBody, ResponseCode);
+
+				UE_LOG(
+					LogTheImmortalAskApi,
+					Log,
+					TEXT("POST complete success=%s code=%d body=%s"),
+					bSuccess ? TEXT("true") : TEXT("false"),
+					ResponseCode,
+					*ResponseBody);
+
+				AsyncTask(ENamedThreads::GameThread, [Callback, bSuccess, Message, ResponseCode, ResponseBody]()
+				{
+					Callback(bSuccess, Message, ResponseCode, ResponseBody);
+				});
+
+				GPendingAuthRequests.Remove(Request);
+			});
+
+		if (!Request->ProcessRequest())
+		{
+			GPendingAuthRequests.Remove(Request);
+			AsyncTask(ENamedThreads::GameThread, [Callback]()
+			{
+				Callback(false, TEXT("无法发起网络请求"), 0, FString());
+			});
+		}
+	}
 }
 
 FString FAuthApiClient::GetGatewayBaseUrl()
 {
-	if (const UAuthSettings* Settings = UAuthSettings::Get())
-	{
-		return Settings->GatewayBaseUrl;
-	}
-	return TEXT("http://127.0.0.1:8080");
+	return UAuthSettings::ResolveGatewayBaseUrl();
 }
 
 void FAuthApiClient::Register(
@@ -62,33 +133,16 @@ void FAuthApiClient::Register(
 	}
 
 	const FString Url = FString::Printf(TEXT("%s/api/v1/auth/register"), *GetGatewayBaseUrl());
-	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
-	Request->SetURL(Url);
-	Request->SetVerb(TEXT("POST"));
-	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
-	Request->SetContentAsString(BuildJsonPayload(Body));
-	Request->SetTimeout(15.0f);
-
-	Request->OnProcessRequestComplete().BindLambda(
-		[Callback](FHttpRequestPtr, const FHttpResponsePtr& Response, const bool bConnectedSuccessfully)
+	SendJsonPost(Url, Body, [Callback](const bool bSuccess, const FString& Message, const int32, const FString&)
+	{
+		if (bSuccess)
 		{
-			if (!bConnectedSuccessfully || !Response.IsValid())
-			{
-				Callback(false, TEXT("无法连接服务器，请确认网关已启动"));
-				return;
-			}
+			Callback(true, TEXT("注册成功，请登录"));
+			return;
+		}
 
-			const int32 Code = Response->GetResponseCode();
-			if (Code >= 200 && Code < 300)
-			{
-				Callback(true, TEXT("注册成功，请登录"));
-				return;
-			}
-
-			Callback(false, ExtractErrorMessage(Response->GetContentAsString()));
-		});
-
-	Request->ProcessRequest();
+		Callback(false, Message);
+	});
 }
 
 void FAuthApiClient::Login(
@@ -102,45 +156,28 @@ void FAuthApiClient::Login(
 	Body->SetStringField(TEXT("password"), Password);
 
 	const FString Url = FString::Printf(TEXT("%s/api/v1/auth/login"), *GetGatewayBaseUrl());
-	TSharedRef<IHttpRequest, ESPMode::ThreadSafe> Request = FHttpModule::Get().CreateRequest();
-	Request->SetURL(Url);
-	Request->SetVerb(TEXT("POST"));
-	Request->SetHeader(TEXT("Content-Type"), TEXT("application/json"));
-	Request->SetContentAsString(BuildJsonPayload(Body));
-	Request->SetTimeout(15.0f);
-
-	Request->OnProcessRequestComplete().BindLambda(
-		[Callback](FHttpRequestPtr, const FHttpResponsePtr& Response, const bool bConnectedSuccessfully)
+	SendJsonPost(Url, Body, [Callback](const bool bSuccess, const FString& Message, const int32, const FString& ResponseBody)
+	{
+		if (!bSuccess)
 		{
-			if (!bConnectedSuccessfully || !Response.IsValid())
-			{
-				Callback(false, TEXT("无法连接服务器，请确认网关已启动"), 0, FString(), 0);
-				return;
-			}
+			Callback(false, Message, 0, FString(), 0);
+			return;
+		}
 
-			const int32 Code = Response->GetResponseCode();
-			if (Code < 200 || Code >= 300)
-			{
-				Callback(false, ExtractErrorMessage(Response->GetContentAsString()), 0, FString(), 0);
-				return;
-			}
+		TSharedPtr<FJsonObject> JsonObject;
+		const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(ResponseBody);
+		if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
+		{
+			Callback(false, TEXT("登录响应解析失败"), 0, FString(), 0);
+			return;
+		}
 
-			TSharedPtr<FJsonObject> JsonObject;
-			const TSharedRef<TJsonReader<>> Reader = TJsonReaderFactory<>::Create(Response->GetContentAsString());
-			if (!FJsonSerializer::Deserialize(Reader, JsonObject) || !JsonObject.IsValid())
-			{
-				Callback(false, TEXT("登录响应解析失败"), 0, FString(), 0);
-				return;
-			}
-
-			int64 AccountId = 0;
-			int64 ExpiresIn = 0;
-			FString AccessToken;
-			JsonObject->TryGetNumberField(TEXT("account_id"), AccountId);
-			JsonObject->TryGetNumberField(TEXT("expires_in"), ExpiresIn);
-			JsonObject->TryGetStringField(TEXT("access_token"), AccessToken);
-			Callback(true, TEXT("登录成功，欢迎入道"), AccountId, AccessToken, ExpiresIn);
-		});
-
-	Request->ProcessRequest();
+		double AccountIdValue = 0.0;
+		double ExpiresInValue = 0.0;
+		FString AccessToken;
+		JsonObject->TryGetNumberField(TEXT("account_id"), AccountIdValue);
+		JsonObject->TryGetNumberField(TEXT("expires_in"), ExpiresInValue);
+		JsonObject->TryGetStringField(TEXT("access_token"), AccessToken);
+		Callback(true, TEXT("登录成功，欢迎入道"), static_cast<int64>(AccountIdValue), AccessToken, static_cast<int64>(ExpiresInValue));
+	});
 }
