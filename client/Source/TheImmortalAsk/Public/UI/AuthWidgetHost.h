@@ -6,9 +6,11 @@
 #include "Blueprint/UserWidget.h"
 #include "AuthWidgetHost.generated.h"
 
-class ULoginWidget;
-class URegisterWidget;
+class UBorder;
+class UButton;
+class UEditableTextBox;
 class UTextBlock;
+class UVerticalBox;
 
 UCLASS()
 class THEIMMORTALASK_API UAuthWidgetHost : public UUserWidget
@@ -16,21 +18,65 @@ class THEIMMORTALASK_API UAuthWidgetHost : public UUserWidget
 	GENERATED_BODY()
 
 protected:
+	virtual TSharedRef<SWidget> RebuildWidget() override;
 	virtual void NativeConstruct() override;
 
 private:
 	UPROPERTY()
-	TObjectPtr<ULoginWidget> LoginWidget;
+	TObjectPtr<UVerticalBox> LoginPanel;
 
 	UPROPERTY()
-	TObjectPtr<URegisterWidget> RegisterWidget;
+	TObjectPtr<UVerticalBox> RegisterPanel;
 
 	UPROPERTY()
-	TObjectPtr<UTextBlock> TitleText;
+	TObjectPtr<UWidget> LoginFormRoot;
+
+	UPROPERTY()
+	TObjectPtr<UWidget> RegisterFormRoot;
+
+	UPROPERTY()
+	TObjectPtr<UEditableTextBox> LoginUsernameInput;
+
+	UPROPERTY()
+	TObjectPtr<UEditableTextBox> LoginPasswordInput;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> LoginStatusText;
+
+	UPROPERTY()
+	TObjectPtr<UButton> LoginButton;
+
+	UPROPERTY()
+	TObjectPtr<UEditableTextBox> RegisterUsernameInput;
+
+	UPROPERTY()
+	TObjectPtr<UEditableTextBox> RegisterEmailInput;
+
+	UPROPERTY()
+	TObjectPtr<UEditableTextBox> RegisterPasswordInput;
+
+	UPROPERTY()
+	TObjectPtr<UEditableTextBox> RegisterConfirmPasswordInput;
+
+	UPROPERTY()
+	TObjectPtr<UTextBlock> RegisterStatusText;
+
+	UPROPERTY()
+	TObjectPtr<UButton> RegisterButton;
 
 	void BuildLayout();
 	void ShowLogin();
 	void ShowRegister();
+	void SetLoginStatus(const FString& Message, bool bIsError);
+	void SetRegisterStatus(const FString& Message, bool bIsError);
+	void SetLoginBusy(bool bBusy);
+	void SetRegisterBusy(bool bBusy);
+
+	UFUNCTION()
+	void HandleLoginClicked();
+
+	UFUNCTION()
+	void HandleRegisterClicked();
 
 	UFUNCTION()
 	void HandleShowRegister();

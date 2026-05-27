@@ -57,11 +57,25 @@ namespace AuthWidgetStyles
 		return FLinearColor(0.45f, 0.85f, 0.55f, 1.0f);
 	}
 
+	inline void ApplySolidBrush(UBorder* Border, const FLinearColor& Color)
+	{
+		if (!Border)
+		{
+			return;
+		}
+
+		FSlateBrush Brush;
+		Brush.DrawAs = ESlateBrushDrawType::Box;
+		Brush.TintColor = FSlateColor(Color);
+		Brush.ImageSize = FVector2D(1.f, 1.f);
+		Border->SetBrush(Brush);
+	}
+
 	inline void StylePanel(UBorder* Border)
 	{
 		if (Border)
 		{
-			Border->SetBrushColor(BackgroundColor());
+			ApplySolidBrush(Border, BackgroundColor());
 			Border->SetPadding(FMargin(28.f, 32.f));
 		}
 	}
